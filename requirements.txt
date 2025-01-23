@@ -3,3 +3,4 @@ langchain-community
 tavily-python 
 openai 
 python-dotenv
+pypdf
