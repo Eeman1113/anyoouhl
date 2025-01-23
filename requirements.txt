@@ -1,4 +1,5 @@
 streamlit 
+chromadb
 langchain-community 
 tavily-python 
 openai 
