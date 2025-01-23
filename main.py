@@ -181,8 +181,8 @@ def initialize_system(uploaded_files):
     return llm, pdf_qa, vectordb, embeddings, document_splitter
 
 def main():
-    st.set_page_config(page_title="Document Chat", page_icon="📄", layout="wide")
-    st.title("📄 Document Chat Assistant")
+    st.set_page_config(page_title="Quickest AI", page_icon="📄", layout="wide")
+    st.title("📄 Quickest AI")
 
     # Sidebar for file uploads
     with st.sidebar:
