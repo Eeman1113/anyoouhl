@@ -4,7 +4,6 @@ import re
 import requests
 from urllib.parse import urlparse
 from dotenv import load_dotenv
-from datetime import datetime
 
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader
 from langchain.text_splitter import CharacterTextSplitter
@@ -19,7 +18,7 @@ import tempfile
 # Load environment variables
 load_dotenv()
 
-# Set API keys from environment (recommended for security)
+# Set API keys from environment
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY")
 TAVILY_API_KEY = st.secrets.get("TAVILY_API_KEY")
 
@@ -63,14 +62,20 @@ def get_tavily_search(query):
     """Get web search results using Tavily"""
     try:
         client = TavilyClient(api_key=TAVILY_API_KEY)
-        search_result = client.search(query=query, search_depth="advanced")
+        search_result = client.search(
+            query=query, 
+            search_depth="advanced",
+            include_images=True, 
+            include_image_descriptions=True, 
+            include_answer=True,
+            max_results=7
+        )
         return search_result
     except Exception as e:
         return f"Search error: {str(e)}"
 
 def initialize_system(uploaded_files):
     """Initialize system components with uploaded files"""
-    # Load and process documents
     documents = []
     try:
         for file in uploaded_files:
@@ -113,67 +118,19 @@ def initialize_system(uploaded_files):
 
     return llm, pdf_qa, vectordb, embeddings, document_splitter
 
-def process_query_with_urls(query, llm, pdf_qa, vectordb, embeddings, document_splitter):
-    """Process query containing URLs"""
-    urls = URL_PATTERN.finditer(query)
-    url_contents = []
-
-    for url_match in urls:
-        url = url_match.group()
-        st.info(f"Processing URL: {url}")
-
-        documents = process_url_content(url)
-        if documents:
-            doc_chunks = document_splitter.split_documents(documents)
-            url_doc_store = FAISS.from_documents(doc_chunks, embeddings)
-            vectordb.merge_from(url_doc_store)
-            url_contents.append(f"Content from {url} has been processed and added to the knowledge base.")
-        else:
-            search_results = get_tavily_search(f"site:{url}")
-            url_contents.append(f"Web search results for {url}:\n{search_results}")
-
-    clean_query = URL_PATTERN.sub('', query).strip()
-    if not clean_query:
-        clean_query = "Please summarize the content from the provided URLs"
-
-    doc_results = pdf_qa({"question": clean_query})
-
-    combined_prompt = (
-        "You are an AI assistant with access to both document knowledge and web search results. "
-        "Your task is to provide accurate, comprehensive answers by following these guidelines:\n\n"
-
-        "1. DOCUMENT ANALYSIS:\n"
-        f"Review this information from the document database:\n{doc_results['answer']}\n"
-        "- Prioritize this information as your primary source\n"
-        "- Extract key concepts and relevant details\n"
-        "- Note specific examples and data points\n"
-        "- Identify any limitations in the document information\n\n"
-
-        "2. URL CONTENT ANALYSIS:\n"
-        f"Additional context from processed URLs:\n{chr(10).join(url_contents)}\n"
-        "- Use this to supplement document information\n"
-        "- Cross-reference with document findings\n"
-        "- Note any updates or new information\n"
-        "- Highlight any contradictions or confirmations\n\n"
-
-        "3. INTEGRATION REQUIREMENTS:\n"
-        "- Begin with the most relevant document information\n"
-        "- Supplement with URL content where appropriate\n"
-        "- Clearly distinguish between document and URL sources\n"
-        "- Address any contradictions between sources\n"
-        "- Provide a balanced, comprehensive analysis\n\n"
-
-        f"QUERY: {clean_query}\n\n"
-
-        "Format your response to:\n"
-        "1. Lead with the most relevant document-based information\n"
-        "2. Integrate supporting URL content naturally\n"
-        "3. Maintain clear source attribution\n"
-        "4. Address all aspects of the query\n"
-        "5. Highlight any important limitations or uncertainties\n"
-    )
-
-    return llm.predict(combined_prompt)
+def generate_suggested_questions(response):
+    """Generate suggested follow-up questions"""
+    try:
+        llm = ChatOpenAI(temperature=0.7, model_name='gpt-4o-mini')
+        suggested_prompt = f"Generate 3 concise follow-up questions based on this response:\n\n{response}"
+        suggested_questions = llm.predict(suggested_prompt)
+        return suggested_questions.strip().split('\n')
+    except Exception:
+        return [
+            "Can you elaborate on that?",
+            "Tell me more about this topic.",
+            "What are the key takeaways?"
+        ]
 
 def main():
     st.set_page_config(page_title="Document Chat", page_icon="📄", layout="wide")
@@ -224,63 +181,92 @@ def main():
         # Generate response
         with st.chat_message("assistant"):
             with st.spinner("Processing..."):
-                # Check if query contains URLs
-                if URL_PATTERN.search(prompt):
-                    response = process_query_with_urls(
-                        prompt, 
-                        st.session_state.llm, 
-                        st.session_state.pdf_qa, 
-                        st.session_state.vectordb, 
-                        st.session_state.embeddings, 
-                        st.session_state.document_splitter
-                    )
+                # Check if query is a web search or contains URLs
+                is_web_search = prompt.startswith('/search')
+                contains_url = URL_PATTERN.search(prompt)
+
+                if is_web_search or contains_url:
+                    # Remove /search prefix if present
+                    clean_query = prompt[7:].strip() if is_web_search else prompt
+
+                    # Web search or URL processing
+                    web_sources = []
+                    tavily_result = None
+
+                    # Perform web search or URL processing
+                    if is_web_search:
+                        tavily_result = get_tavily_search(clean_query)
+                        
+                        # Process Tavily search results
+                        if isinstance(tavily_result, dict):
+                            # Add web search sources
+                            web_sources.append(f"🌐 Web Search Query: {clean_query}")
+                            
+                            # Add Tavily answer if available
+                            if tavily_result.get('answer'):
+                                web_sources.append(f"📝 AI Generated Answer: {tavily_result['answer']}")
+                            
+                            # Add result sources
+                            for result in tavily_result.get('results', []):
+                                web_sources.append(f"🔗 Source: {result['title']} ({result['url']})")
+                            
+                            # Add images if available
+                            if tavily_result.get('images'):
+                                web_sources.append("🖼️ Related Images:")
+                                for img in tavily_result['images']:
+                                    web_sources.append(f"- {img.get('url', img) if isinstance(img, dict) else img}")
+
+                    if contains_url:
+                        urls = URL_PATTERN.finditer(clean_query)
+                        for url_match in urls:
+                            url = url_match.group()
+                            documents = process_url_content(url)
+                            if documents:
+                                # Process URL documents
+                                doc_chunks = st.session_state.document_splitter.split_documents(documents)
+                                url_doc_store = FAISS.from_documents(doc_chunks, st.session_state.embeddings)
+                                st.session_state.vectordb.merge_from(url_doc_store)
+                                web_sources.append(f"📄 URL Source: {url}")
+
+                    # Combine results
+                    response_content = ""
+                    if is_web_search and tavily_result and tavily_result.get('answer'):
+                        response_content = tavily_result['answer']
+                    else:
+                        doc_results = st.session_state.pdf_qa({"question": clean_query})
+                        response_content = doc_results['answer']
+
+                    # Generate sources and response
+                    full_response = "**Sources:**\n" + "\n".join(web_sources) + "\n\n**Response:**\n" + response_content
+
+                    # Display response
+                    st.markdown(full_response)
+
+                    # Generate and display suggested questions
+                    suggested_questions = generate_suggested_questions(response_content)
+                    st.markdown("**Suggested Follow-up Questions:**")
+                    for q in suggested_questions:
+                        st.markdown(f"- {q}")
+
+                    # Add assistant response to chat history
+                    st.session_state.messages.append({"role": "assistant", "content": full_response})
+
                 else:
-                    # Regular query processing
-                    web_context = get_tavily_search(prompt)
+                    # Regular document-based query
                     doc_results = st.session_state.pdf_qa({"question": prompt})
+                    response = doc_results['answer']
 
-                    combined_prompt = (
-                        "You are an AI assistant with access to both document knowledge and web search results. "
-                        "Your task is to provide accurate, comprehensive answers by following these guidelines:\n\n"
+                    # Display response
+                    st.markdown(response)
 
-                        "1. PRIMARY DOCUMENT KNOWLEDGE:\n"
-                        f"Review this information from the document database:\n{doc_results['answer']}\n"
-                        "- This is your primary source of information\n"
-                        "- Extract key concepts and relevant details\n"
-                        "- Pay attention to specific examples and data points\n"
-                        "- Note any limitations or gaps in the document information\n\n"
+                    # Generate and display suggested questions
+                    suggested_questions = generate_suggested_questions(response)
+                    st.markdown("**Suggested Follow-up Questions:**")
+                    for q in suggested_questions:
+                        st.markdown(f"- {q}")
 
-                        "2. WEB SEARCH CONTEXT:\n"
-                        f"Consider these web search findings:\n{web_context}\n"
-                        "- Use this to supplement document information\n"
-                        "- Fill gaps in document knowledge\n"
-                        "- Verify and cross-reference information\n"
-                        "- Note any updates or new developments\n\n"
-
-                        "3. INTEGRATION REQUIREMENTS:\n"
-                        "- Start with document-based information\n"
-                        "- Add relevant web search context\n"
-                        "- Clearly indicate information sources\n"
-                        "- Address any contradictions\n"
-                        "- Ensure comprehensive coverage\n\n"
-
-                        f"QUERY: {prompt}\n\n"
-
-                        "Format your response to:\n"
-                        "1. Lead with the most relevant document-based information\n"
-                        "2. Integrate web search findings naturally\n"
-                        "3. Maintain clear source attribution\n"
-                        "4. Address all aspects of the query\n"
-                        "5. Highlight any important limitations or uncertainties\n"
-                    )
-
-                    response = st.session_state.llm.predict(combined_prompt)
-
-                # Display assistant response
-                st.markdown(response)
-
-                # Add assistant response to chat history
-                st.session_state.messages.append({"role": "assistant", "content": response})
+                    # Add assistant response to chat history
+                    st.session_state.messages.append({"role": "assistant", "content": response})
 
 if __name__ == "__main__":
     main()
