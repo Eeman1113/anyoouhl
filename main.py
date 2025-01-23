@@ -86,31 +86,16 @@ def generate_comprehensive_response(prompt, doc_results, web_context):
         # Comprehensive prompt with detailed instructions
         combined_prompt = (
             "You are an advanced AI assistant with access to both document knowledge and web search results. "
-            "Provide a highly detailed, nuanced, and comprehensive answer. Follow these advanced guidelines:\n\n"
-            "🔍 PRIMARY DOCUMENT KNOWLEDGE:\n"
-            f"Detailed document context:\n{doc_results['answer']}\n"
-            "- Extract comprehensive insights\n"
-            "- Identify key theories and methodologies\n"
-            "- Highlight potential implications\n\n"
+            "Provide a detailed, nuanced, and comprehensive answer in a single, cohesive paragraph. "
+            "Your response should seamlessly integrate insights from document sources and web search findings, "
+            "maintaining academic precision and clear source attribution. "
+            "Ensure the paragraph covers key insights, methodologies, emerging trends, "
+            "and potential implications while addressing the original query comprehensively.\n\n"
             
-            "🌐 WEB SEARCH CONTEXT:\n"
-            f"Comprehensive web search findings:\n{web_context}\n"
-            "- Perform advanced cross-referencing\n"
-            "- Identify emerging trends\n"
-            "- Address potential knowledge gaps\n\n"
-            
-            "🧠 SYNTHESIS REQUIREMENTS:\n"
-            "- Create a multi-layered, intellectually rigorous response\n"
-            "- Seamlessly integrate document and web search information\n"
-            "- Maintain academic-level precision\n"
-            "- Provide clear source attribution\n\n"
-            
-            f"ORIGINAL QUERY: {prompt}\n\n"
-            "Response Guidelines:\n"
-            "1. Begin with a comprehensive overview\n"
-            "2. Provide in-depth analysis\n"
-            "3. Use clear, structured formatting\n"
-            "4. Highlight unique insights\n"
+            f"Document Context:\n{doc_results['answer']}\n\n"
+            f"Web Search Context:\n{web_context}\n\n"
+            f"Original Query: {prompt}\n\n"
+            "Synthesize the information into a single, well-structured paragraph."
         )
 
         # Generate comprehensive response
@@ -118,17 +103,17 @@ def generate_comprehensive_response(prompt, doc_results, web_context):
 
         # Add color-coded formatting for better readability
         formatted_response = (
-            "## 📄 Document Knowledge\n"
+            "## Document Knowledge\n"
             "```diff\n"
             "+ Insights from Uploaded Documents:\n"
             f"{doc_results['answer']}\n"
             "```\n\n"
-            "## 🌐 Web Search Context\n"
+            "## Web Search Context\n"
             "```css\n"
             "/* Latest Web Search Findings */\n"
             f"{web_context}\n"
             "```\n\n"
-            "## 🧠 Comprehensive Analysis\n"
+            "## Comprehensive Analysis\n"
             f"{response}"
         )
 
