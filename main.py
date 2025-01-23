@@ -102,7 +102,7 @@ def initialize_system(uploaded_files):
     vectordb = FAISS.from_documents(document_chunks, embeddings)
 
     # Setup chat model
-    llm = ChatOpenAI(temperature=0.7, model_name='gpt-4')
+    llm = ChatOpenAI(temperature=0.7, model_name='gpt-4o-mini')
     memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
     pdf_qa = ConversationalRetrievalChain.from_llm(
         llm=llm,
