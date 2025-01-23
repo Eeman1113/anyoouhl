@@ -74,6 +74,83 @@ def get_tavily_search(query):
     except Exception as e:
         return f"Search error: {str(e)}"
 
+def generate_comprehensive_response(prompt, doc_results, web_context):
+    """
+    Generate a comprehensive response integrating document and web search information
+    with color-coded sections for better readability.
+    """
+    try:
+        # Use a more advanced LLM for comprehensive synthesis
+        llm = ChatOpenAI(temperature=0.7, model_name='gpt-4o')
+        
+        # Comprehensive prompt with detailed instructions
+        combined_prompt = (
+            "You are an advanced AI assistant with access to both document knowledge and web search results. "
+            "Provide a highly detailed, nuanced, and comprehensive answer. Follow these advanced guidelines:\n\n"
+            "🔍 PRIMARY DOCUMENT KNOWLEDGE:\n"
+            f"Detailed document context:\n{doc_results['answer']}\n"
+            "- Extract comprehensive insights\n"
+            "- Identify key theories and methodologies\n"
+            "- Highlight potential implications\n\n"
+            
+            "🌐 WEB SEARCH CONTEXT:\n"
+            f"Comprehensive web search findings:\n{web_context}\n"
+            "- Perform advanced cross-referencing\n"
+            "- Identify emerging trends\n"
+            "- Address potential knowledge gaps\n\n"
+            
+            "🧠 SYNTHESIS REQUIREMENTS:\n"
+            "- Create a multi-layered, intellectually rigorous response\n"
+            "- Seamlessly integrate document and web search information\n"
+            "- Maintain academic-level precision\n"
+            "- Provide clear source attribution\n\n"
+            
+            f"ORIGINAL QUERY: {prompt}\n\n"
+            "Response Guidelines:\n"
+            "1. Begin with a comprehensive overview\n"
+            "2. Provide in-depth analysis\n"
+            "3. Use clear, structured formatting\n"
+            "4. Highlight unique insights\n"
+        )
+
+        # Generate comprehensive response
+        response = llm.predict(combined_prompt)
+
+        # Add color-coded formatting for better readability
+        formatted_response = (
+            "## 📄 Document Knowledge\n"
+            "```diff\n"
+            "+ Insights from Uploaded Documents:\n"
+            f"{doc_results['answer']}\n"
+            "```\n\n"
+            "## 🌐 Web Search Context\n"
+            "```css\n"
+            "/* Latest Web Search Findings */\n"
+            f"{web_context}\n"
+            "```\n\n"
+            "## 🧠 Comprehensive Analysis\n"
+            f"{response}"
+        )
+
+        return formatted_response
+
+    except Exception as e:
+        return f"Error generating comprehensive response: {str(e)}"
+
+def generate_suggested_questions(response):
+    """Generate suggested follow-up questions"""
+    try:
+        llm = ChatOpenAI(temperature=0.7, model_name='gpt-4o-mini')
+        suggested_prompt = f"Generate 3 concise follow-up questions based on this response:\n\n{response}"
+        suggested_questions = llm.predict(suggested_prompt)
+        return suggested_questions.strip().split('\n')
+    except Exception:
+        return [
+            "Can you elaborate on that?",
+            "Tell me more about this topic.",
+            "What are the key takeaways?"
+        ]
+
 def initialize_system(uploaded_files):
     """Initialize system components with uploaded files"""
     documents = []
@@ -117,20 +194,6 @@ def initialize_system(uploaded_files):
     )
 
     return llm, pdf_qa, vectordb, embeddings, document_splitter
-
-def generate_suggested_questions(response):
-    """Generate suggested follow-up questions"""
-    try:
-        llm = ChatOpenAI(temperature=0.7, model_name='gpt-4o-mini')
-        suggested_prompt = f"Generate 3 concise follow-up questions based on this response:\n\n{response}"
-        suggested_questions = llm.predict(suggested_prompt)
-        return suggested_questions.strip().split('\n')
-    except Exception:
-        return [
-            "Can you elaborate on that?",
-            "Tell me more about this topic.",
-            "What are the key takeaways?"
-        ]
 
 def main():
     st.set_page_config(page_title="Document Chat", page_icon="📄", layout="wide")
@@ -236,14 +299,18 @@ def main():
                         doc_results = st.session_state.pdf_qa({"question": clean_query})
                         response_content = doc_results['answer']
 
-                    # Generate sources and response
-                    full_response = "**Sources:**\n" + "\n".join(web_sources) + "\n\n**Response:**\n" + response_content
+                    # Use comprehensive response generation
+                    full_response = generate_comprehensive_response(
+                        clean_query, 
+                        {'answer': response_content}, 
+                        "\n".join(web_sources)
+                    )
 
                     # Display response
                     st.markdown(full_response)
 
                     # Generate and display suggested questions
-                    suggested_questions = generate_suggested_questions(response_content)
+                    suggested_questions = generate_suggested_questions(full_response)
                     st.markdown("**Suggested Follow-up Questions:**")
                     for q in suggested_questions:
                         st.markdown(f"- {q}")
