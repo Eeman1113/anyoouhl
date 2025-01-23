@@ -213,7 +213,7 @@ def main():
             st.markdown(message["content"])
 
     # Chat input
-    if prompt := st.chat_input("Enter your query"):
+    if prompt := st.chat_input("Use /search to perform WEB SEARCH Or Start writing to chat with your doc."):
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
         
