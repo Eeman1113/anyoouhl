@@ -9,7 +9,7 @@ from datetime import datetime
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.embeddings import OpenAIEmbeddings
-from langchain_community.vectorstores import Chroma
+from langchain_community.vectorstores import FAISS
 from langchain_community.chat_models import ChatOpenAI
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
@@ -97,11 +97,9 @@ def initialize_system(uploaded_files):
     document_splitter = CharacterTextSplitter(separator='\n', chunk_size=500, chunk_overlap=100)
     document_chunks = document_splitter.split_documents(documents)
 
-    # Create vector store
+    # Create vector store using FAISS
     embeddings = OpenAIEmbeddings()
-    os.makedirs("./data", exist_ok=True)
-    vectordb = Chroma.from_documents(document_chunks, embedding=embeddings, persist_directory='./data')
-    vectordb.persist()
+    vectordb = FAISS.from_documents(document_chunks, embeddings)
 
     # Setup chat model
     llm = ChatOpenAI(temperature=0.7, model_name='gpt-4')
@@ -127,7 +125,8 @@ def process_query_with_urls(query, llm, pdf_qa, vectordb, embeddings, document_s
         documents = process_url_content(url)
         if documents:
             doc_chunks = document_splitter.split_documents(documents)
-            vectordb.add_documents(doc_chunks)
+            url_doc_store = FAISS.from_documents(doc_chunks, embeddings)
+            vectordb.merge_from(url_doc_store)
             url_contents.append(f"Content from {url} has been processed and added to the knowledge base.")
         else:
             search_results = get_tavily_search(f"site:{url}")
