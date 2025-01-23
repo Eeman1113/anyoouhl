@@ -62,7 +62,7 @@ def process_url_content(url):
 def get_tavily_search(query):
     """Get web search results using Tavily"""
     try:
-        client = TavilyClient(api_key=TAVILY_API_KEY)
+        client = TavilyClient(api_key=TAVILY_API_KEY, include_images=True, include_image_descriptions=True, include_answer=True)
         search_result = client.search(query=query, search_depth="advanced")
         return search_result
     except Exception as e:
