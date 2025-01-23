@@ -6,7 +6,6 @@ python-dotenv
 pypdf
 python-docx
 requests
-pysqlite3
 rich
 chromadb
 tiktoken
