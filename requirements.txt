@@ -1,9 +1,9 @@
+PyPDF2
 streamlit
 python-dotenv
 langchain-community
 openai
 tavily-python
 faiss-cpu
-PyPDF2
 python-docx
 requests
